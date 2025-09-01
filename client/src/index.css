@@ -1,0 +1,169 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(220, 14%, 96%);
+  --foreground: hsl(220, 9%, 9%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(220, 9%, 9%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(220, 9%, 9%);
+  --primary: hsl(221, 83%, 53%);
+  --primary-foreground: hsl(210, 40%, 98%);
+  --secondary: hsl(220, 14%, 91%);
+  --secondary-foreground: hsl(220, 9%, 9%);
+  --muted: hsl(220, 14%, 96%);
+  --muted-foreground: hsl(220, 9%, 46%);
+  --accent: hsl(262, 83%, 58%);
+  --accent-foreground: hsl(210, 40%, 98%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(210, 40%, 98%);
+  --border: hsl(220, 13%, 91%);
+  --input: hsl(220, 13%, 91%);
+  --ring: hsl(221, 83%, 53%);
+  --radius: 8px;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+}
+
+.dark {
+  --background: hsl(220, 27%, 8%);
+  --foreground: hsl(220, 14%, 91%);
+  --card: hsl(220, 27%, 12%);
+  --card-foreground: hsl(220, 14%, 91%);
+  --popover: hsl(220, 27%, 12%);
+  --popover-foreground: hsl(220, 14%, 91%);
+  --primary: hsl(221, 83%, 53%);
+  --primary-foreground: hsl(210, 40%, 98%);
+  --secondary: hsl(220, 27%, 16%);
+  --secondary-foreground: hsl(220, 14%, 91%);
+  --muted: hsl(220, 27%, 16%);
+  --muted-foreground: hsl(220, 9%, 46%);
+  --accent: hsl(262, 83%, 58%);
+  --accent-foreground: hsl(210, 40%, 98%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(210, 40%, 98%);
+  --border: hsl(220, 27%, 16%);
+  --input: hsl(220, 27%, 16%);
+  --ring: hsl(221, 83%, 53%);
+}
+
+/* Theme Color Variants */
+.theme-black {
+  --primary: hsl(0, 0%, 9%);
+  --accent: hsl(0, 0%, 25%);
+}
+
+.theme-pink {
+  --primary: hsl(330, 81%, 60%);
+  --accent: hsl(330, 81%, 70%);
+}
+
+.theme-red {
+  --primary: hsl(0, 84%, 60%);
+  --accent: hsl(0, 84%, 70%);
+}
+
+.theme-green {
+  --primary: hsl(142, 71%, 45%);
+  --accent: hsl(142, 71%, 55%);
+}
+
+.theme-purple {
+  --primary: hsl(262, 83%, 58%);
+  --accent: hsl(262, 83%, 68%);
+}
+
+.theme-blue {
+  --primary: hsl(221, 83%, 53%);
+  --accent: hsl(221, 83%, 63%);
+}
+
+.theme-yellow {
+  --primary: hsl(47, 96%, 53%);
+  --accent: hsl(47, 96%, 63%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+/* Custom scrollbar */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted-foreground) var(--muted);
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: var(--muted);
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--muted-foreground);
+  border-radius: 3px;
+}
+
+/* Cell boundary animations */
+.cell-boundary {
+  border: 2px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.cell-boundary:hover {
+  border-color: var(--border);
+}
+
+.cell-boundary.active {
+  border-color: var(--primary);
+}
+
+/* Monaco Editor Custom Styling */
+.monaco-editor {
+  --vscode-editor-background: var(--muted);
+}
+
+/* Execution status indicator */
+.execution-status {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { 
+    opacity: 1; 
+  }
+  50% { 
+    opacity: 0.5; 
+  }
+}
+
+/* File item hover effects */
+.file-item:hover {
+  background-color: var(--muted);
+}
+
+/* Copilot chat styling */
+.copilot-chat {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* Panel resize handle styling */
+[data-panel-resize-handle-enabled="true"] {
+  transition: background-color 0.2s;
+}
+
+[data-panel-resize-handle-enabled="true"]:hover {
+  background-color: var(--primary);
+}

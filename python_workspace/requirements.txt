@@ -1,0 +1,5 @@
+# Add your Python dependencies here
+# Example:
+# pandas==1.5.0
+# matplotlib==3.6.0
+# numpy==1.24.0

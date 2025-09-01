@@ -60,15 +60,17 @@ export function CopilotPanel({ currentFileId, cells = [] }: CopilotPanelProps) {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: async ({ sessionId, message, cells }: {
+    mutationFn: async ({ sessionId, message, cells, apiKey }: {
       sessionId: string;
       message: string;
       cells: NotebookCell[];
+      apiKey?: string;
     }) => {
       const response = await apiRequest("POST", `/api/copilot/sessions/${sessionId}/chat`, {
         message,
         cells,
         fileId: currentFileId,
+        apiKey,
       });
       return response.json();
     },
@@ -111,6 +113,7 @@ export function CopilotPanel({ currentFileId, cells = [] }: CopilotPanelProps) {
       sessionId,
       message: message.trim(),
       cells,
+      apiKey: apiKey.trim() || undefined,
     });
   };
 

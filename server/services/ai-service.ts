@@ -3,19 +3,30 @@ import { GoogleGenAI } from "@google/genai";
 export interface AIProvider {
   name: string;
   models: string[];
+  setApiKey?(apiKey: string): void;
   generateResponse(model: string, prompt: string, context?: any): Promise<string>;
 }
 
 export class GeminiProvider implements AIProvider {
   name = "gemini";
   models = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-pro"];
-  private ai: GoogleGenAI;
+  private ai?: GoogleGenAI;
 
-  constructor(apiKey: string) {
+  constructor(apiKey?: string) {
+    if (apiKey) {
+      this.ai = new GoogleGenAI({ apiKey });
+    }
+  }
+
+  setApiKey(apiKey: string) {
     this.ai = new GoogleGenAI({ apiKey });
   }
 
   async generateResponse(model: string, prompt: string, context?: any): Promise<string> {
+    if (!this.ai) {
+      throw new Error("Gemini API key not configured. Please provide an API key.");
+    }
+
     try {
       const response = await this.ai.models.generateContent({
         model,
@@ -56,13 +67,21 @@ export class OpenRouterProvider implements AIProvider {
     "agentica-org/deepcoder-14b-preview:free",
     "google/gemma-3-27b-it:free"
   ];
-  private apiKey: string;
+  private apiKey?: string;
 
-  constructor(apiKey: string) {
+  constructor(apiKey?: string) {
+    this.apiKey = apiKey;
+  }
+
+  setApiKey(apiKey: string) {
     this.apiKey = apiKey;
   }
 
   async generateResponse(model: string, prompt: string, context?: any): Promise<string> {
+    if (!this.apiKey) {
+      throw new Error("OpenRouter API key not configured. Please provide an API key.");
+    }
+
     try {
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
@@ -101,16 +120,13 @@ export class AIService {
   private providers: Map<string, AIProvider> = new Map();
 
   constructor() {
-    // Initialize providers with API keys from environment
+    // Initialize providers - they will be available even without API keys
     const geminiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
     const openRouterKey = process.env.OPENROUTER_API_KEY || process.env.VITE_OPENROUTER_API_KEY;
 
-    if (geminiKey) {
-      this.providers.set("gemini", new GeminiProvider(geminiKey));
-    }
-    if (openRouterKey) {
-      this.providers.set("openrouter", new OpenRouterProvider(openRouterKey));
-    }
+    // Always initialize providers, with or without API keys
+    this.providers.set("gemini", new GeminiProvider(geminiKey));
+    this.providers.set("openrouter", new OpenRouterProvider(openRouterKey));
   }
 
   getProvider(name: string): AIProvider | undefined {
@@ -119,6 +135,13 @@ export class AIService {
 
   getAvailableProviders(): string[] {
     return Array.from(this.providers.keys());
+  }
+
+  setApiKey(providerName: string, apiKey: string): void {
+    const provider = this.providers.get(providerName);
+    if (provider && provider.setApiKey) {
+      provider.setApiKey(apiKey);
+    }
   }
 
   async generateResponse(provider: string, model: string, prompt: string, context?: any): Promise<string> {

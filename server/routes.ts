@@ -251,12 +251,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/copilot/sessions/:sessionId/chat", async (req, res) => {
     try {
-      const { message, cells, fileId } = req.body;
+      const { message, cells, fileId, apiKey } = req.body;
       const sessionId = req.params.sessionId;
       
       const session = await storage.getCopilotSession(sessionId);
       if (!session) {
         return res.status(404).json({ error: "Session not found" });
+      }
+
+      // Set API key for the provider if provided
+      if (apiKey) {
+        aiService.setApiKey(session.provider, apiKey);
       }
 
       // Store user message

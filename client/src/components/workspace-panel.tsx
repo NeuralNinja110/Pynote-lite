@@ -27,7 +27,7 @@ export function WorkspacePanel({ onFileSelect, selectedFileId }: WorkspacePanelP
   });
 
   const createFileMutation = useMutation({
-    mutationFn: async (fileData: { name: string; type: string; content: string }) => {
+    mutationFn: async (fileData: { name: string; type: string; content: string; base64Data?: string }) => {
       const response = await apiRequest("POST", "/api/files", fileData);
       return response.json();
     },

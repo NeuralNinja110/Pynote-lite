@@ -25,7 +25,7 @@
   --ring: hsl(221, 83%, 53%);
   --radius: 8px;
   --font-sans: 'Inter', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
 }
 
 .dark {
@@ -129,9 +129,21 @@
   border-color: var(--primary);
 }
 
-/* Monaco Editor Custom Styling */
-.monaco-editor {
-  --vscode-editor-background: var(--muted);
+/* CodeMirror Custom Styling */
+.cm-editor {
+  font-family: var(--font-mono);
+}
+
+.cm-focused {
+  outline: none !important;
+}
+
+.cm-content {
+  padding: 8px;
+}
+
+.cm-scroller {
+  font-family: var(--font-mono);
 }
 
 /* Execution status indicator */

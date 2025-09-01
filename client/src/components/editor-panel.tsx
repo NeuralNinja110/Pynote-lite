@@ -18,6 +18,7 @@ interface EditorPanelProps {
 export function EditorPanel({ file, onCloseFile }: EditorPanelProps) {
   const [fileContent, setFileContent] = useState("");
   const [executingCells, setExecutingCells] = useState<Set<string>>(new Set());
+  const [inputWaitingCells, setInputWaitingCells] = useState<Map<string, string>>(new Map());
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -86,14 +87,19 @@ export function EditorPanel({ file, onCloseFile }: EditorPanelProps) {
         newSet.delete(variables.cellId);
         return newSet;
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/files", file?.id, "cells"] });
-      
-      if (!result.success) {
-        toast({
-          title: "Execution Error",
-          description: result.error || "Cell execution failed",
-          variant: "destructive",
-        });
+
+      if (result.isWaitingForInput) {
+        setInputWaitingCells(prev => new Map(prev).set(variables.cellId, result.inputPrompt || ""));
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["/api/files", file?.id, "cells"] });
+        
+        if (!result.success) {
+          toast({
+            title: "Execution Error",
+            description: result.error || "Cell execution failed",
+            variant: "destructive",
+          });
+        }
       }
     },
     onError: (error, variables) => {
@@ -105,6 +111,41 @@ export function EditorPanel({ file, onCloseFile }: EditorPanelProps) {
       toast({
         title: "Execution Error",
         description: "Failed to execute cell",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const sendInputMutation = useMutation({
+    mutationFn: async ({ cellId, input }: { cellId: string; input: string }) => {
+      const response = await apiRequest("POST", `/api/cells/${cellId}/input`, { input });
+      return response.json();
+    },
+    onSuccess: (result, variables) => {
+      setInputWaitingCells(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(variables.cellId);
+        return newMap;
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/files", file?.id, "cells"] });
+      
+      if (!result.success) {
+        toast({
+          title: "Input Error",
+          description: result.error || "Failed to send input",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error, variables) => {
+      setInputWaitingCells(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(variables.cellId);
+        return newMap;
+      });
+      toast({
+        title: "Input Error",
+        description: "Failed to send input",
         variant: "destructive",
       });
     },
@@ -134,6 +175,10 @@ export function EditorPanel({ file, onCloseFile }: EditorPanelProps) {
   const handleCellExecute = (cellId: string, content: string) => {
     setExecutingCells(prev => new Set(prev).add(cellId));
     executeCellMutation.mutate({ cellId, content });
+  };
+
+  const handleSendInput = (cellId: string, input: string) => {
+    sendInputMutation.mutate({ cellId, input });
   };
 
   const handleCellDelete = (cellId: string) => {
@@ -211,7 +256,10 @@ export function EditorPanel({ file, onCloseFile }: EditorPanelProps) {
                   onExecute={handleCellExecute}
                   onDelete={handleCellDelete}
                   onAddCell={handleAddCell}
+                  onSendInput={handleSendInput}
                   isExecuting={executingCells.has(cell.id)}
+                  isWaitingForInput={inputWaitingCells.has(cell.id)}
+                  inputPrompt={inputWaitingCells.get(cell.id)}
                 />
               ))
             ) : (

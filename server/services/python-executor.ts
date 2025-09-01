@@ -7,11 +7,23 @@ export interface ExecutionResult {
   error: string;
   success: boolean;
   executionTime: number;
+  isWaitingForInput?: boolean;
+  inputPrompt?: string;
+}
+
+export interface ExecutionSession {
+  process: ChildProcess;
+  output: string;
+  error: string;
+  startTime: number;
+  isWaitingForInput: boolean;
+  inputPrompt: string;
 }
 
 export class PythonExecutor {
   private workingDir: string;
   private activeProcesses: Map<string, ChildProcess> = new Map();
+  private executionSessions: Map<string, ExecutionSession> = new Map();
 
   constructor() {
     this.workingDir = join(process.cwd(), "python_workspace");
@@ -23,6 +35,13 @@ export class PythonExecutor {
   async executeCell(cellId: string, code: string): Promise<ExecutionResult> {
     const startTime = Date.now();
     
+    // Check if code contains input() statements
+    const hasInput = /\binput\s*\(/.test(code);
+    
+    if (hasInput) {
+      return this.executeInteractiveCell(cellId, code);
+    }
+    
     return new Promise((resolve) => {
       let output = "";
       let error = "";
@@ -32,7 +51,7 @@ export class PythonExecutor {
       writeFileSync(tempFile, code);
 
       // Execute Python
-      const pythonProcess = spawn("python", [tempFile], {
+      const pythonProcess = spawn("python", ["-u", tempFile], {
         cwd: this.workingDir,
         env: { ...process.env, PATH: `${process.env.PATH}:/nix/store/*/bin` },
       });
@@ -70,6 +89,173 @@ export class PythonExecutor {
           executionTime,
         });
       });
+    });
+  }
+
+  private executeInteractiveCell(cellId: string, code: string): Promise<ExecutionResult> {
+    const startTime = Date.now();
+    
+    return new Promise((resolve) => {
+      let output = "";
+      let error = "";
+
+      // Write code to temporary file
+      const tempFile = join(this.workingDir, `cell_${cellId}.py`);
+      writeFileSync(tempFile, code);
+
+      // Execute Python interactively
+      const pythonProcess = spawn("python", ["-u", "-i"], {
+        cwd: this.workingDir,
+        env: { ...process.env, PATH: `${process.env.PATH}:/nix/store/*/bin` },
+      });
+
+      // Store session info
+      const session: ExecutionSession = {
+        process: pythonProcess,
+        output: "",
+        error: "",
+        startTime,
+        isWaitingForInput: false,
+        inputPrompt: "",
+      };
+
+      this.executionSessions.set(cellId, session);
+      this.activeProcesses.set(cellId, pythonProcess);
+
+      // Execute the code
+      pythonProcess.stdin.write(`exec(open('${tempFile}').read())\n`);
+
+      let buffer = "";
+      pythonProcess.stdout.on("data", (data) => {
+        const text = data.toString();
+        buffer += text;
+        output += text;
+        session.output += text;
+
+        // Check for input prompts (common patterns)
+        const lines = buffer.split('\n');
+        const lastLine = lines[lines.length - 1];
+        
+        // Detect input prompts
+        if (lastLine && !lastLine.includes('>>>') && !lastLine.includes('...') && 
+            (buffer.includes('>>> ') || text.endsWith(': ') || text.includes('Enter ') || 
+             text.includes('input') || text.includes('?'))) {
+          session.isWaitingForInput = true;
+          session.inputPrompt = lastLine.trim();
+          
+          // Return intermediate result indicating waiting for input
+          resolve({
+            output,
+            error,
+            success: false,
+            executionTime: Date.now() - startTime,
+            isWaitingForInput: true,
+            inputPrompt: session.inputPrompt,
+          });
+          return;
+        }
+      });
+
+      pythonProcess.stderr.on("data", (data) => {
+        const errorText = data.toString();
+        error += errorText;
+        session.error += errorText;
+      });
+
+      pythonProcess.on("close", (code) => {
+        this.activeProcesses.delete(cellId);
+        this.executionSessions.delete(cellId);
+        const executionTime = Date.now() - startTime;
+        
+        resolve({
+          output,
+          error,
+          success: code === 0,
+          executionTime,
+        });
+      });
+
+      pythonProcess.on("error", (err) => {
+        this.activeProcesses.delete(cellId);
+        this.executionSessions.delete(cellId);
+        const executionTime = Date.now() - startTime;
+        
+        resolve({
+          output: "",
+          error: err.message,
+          success: false,
+          executionTime,
+        });
+      });
+
+      // Set a timeout to resolve if nothing happens
+      setTimeout(() => {
+        if (this.executionSessions.has(cellId)) {
+          pythonProcess.kill();
+          this.activeProcesses.delete(cellId);
+          this.executionSessions.delete(cellId);
+          
+          resolve({
+            output,
+            error,
+            success: true,
+            executionTime: Date.now() - startTime,
+          });
+        }
+      }, 10000); // 10 second timeout
+    });
+  }
+
+  async sendInput(cellId: string, input: string): Promise<ExecutionResult> {
+    const session = this.executionSessions.get(cellId);
+    if (!session || !session.isWaitingForInput || !session.process.stdin) {
+      throw new Error("No active input session found or stdin not available");
+    }
+
+    return new Promise((resolve) => {
+      session.isWaitingForInput = false;
+      session.inputPrompt = "";
+      
+      // Send the input
+      session.process.stdin!.write(input + '\n');
+
+      // Continue listening for output
+      const onData = (data: Buffer) => {
+        const text = data.toString();
+        session.output += text;
+      };
+
+      const onError = (data: Buffer) => {
+        session.error += data.toString();
+      };
+
+      const onClose = (code: number) => {
+        if (session.process.stdout) {
+          session.process.stdout.off('data', onData);
+        }
+        if (session.process.stderr) {
+          session.process.stderr.off('data', onError);
+        }
+        session.process.off('close', onClose);
+        
+        this.activeProcesses.delete(cellId);
+        this.executionSessions.delete(cellId);
+        
+        resolve({
+          output: session.output,
+          error: session.error,
+          success: code === 0,
+          executionTime: Date.now() - session.startTime,
+        });
+      };
+
+      if (session.process.stdout) {
+        session.process.stdout.on('data', onData);
+      }
+      if (session.process.stderr) {
+        session.process.stderr.on('data', onError);
+      }
+      session.process.on('close', onClose);
     });
   }
 

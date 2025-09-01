@@ -15,6 +15,7 @@ export interface IStorage {
   
   // Notebook cell operations
   getCellsByFileId(fileId: string): Promise<NotebookCell[]>;
+  getCell(id: string): Promise<NotebookCell | undefined>;
   createCell(cell: InsertNotebookCell): Promise<NotebookCell>;
   updateCell(id: string, content: string, output?: string): Promise<NotebookCell | undefined>;
   updateCellOrder(id: string, order: number): Promise<NotebookCell | undefined>;
@@ -114,6 +115,10 @@ export class MemStorage implements IStorage {
     return Array.from(this.cells.values())
       .filter(cell => cell.fileId === fileId)
       .sort((a, b) => a.order - b.order);
+  }
+
+  async getCell(id: string): Promise<NotebookCell | undefined> {
+    return this.cells.get(id);
   }
 
   async createCell(insertCell: InsertNotebookCell): Promise<NotebookCell> {

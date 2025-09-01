@@ -1,18 +1,10 @@
 import { useEffect, useRef } from "react";
-import * as monaco from "monaco-editor";
-
-// Configure Monaco environment to disable workers
-if (typeof window !== 'undefined') {
-  (window as any).MonacoEnvironment = {
-    getWorker: () => {
-      return new Worker(
-        URL.createObjectURL(
-          new Blob([''], { type: 'application/javascript' })
-        )
-      );
-    },
-  };
-}
+import { EditorView, basicSetup } from "codemirror";
+import { EditorState } from "@codemirror/state";
+import { python } from "@codemirror/lang-python";
+import { markdown } from "@codemirror/lang-markdown";
+import { oneDark } from "@codemirror/theme-one-dark";
+import { autocompletion } from "@codemirror/autocomplete";
 
 interface CodeEditorProps {
   value: string;
@@ -24,49 +16,75 @@ interface CodeEditorProps {
 
 export function CodeEditor({ value, language, onChange, readOnly = false, className = "" }: CodeEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
-  const monacoRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const viewRef = useRef<EditorView | null>(null);
 
   useEffect(() => {
-    if (editorRef.current) {
-      // Configure Monaco for Python
-      monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
-        noSemanticValidation: true,
-        noSyntaxValidation: true,
+    if (editorRef.current && !viewRef.current) {
+      // Determine language extension
+      const languageExtension = language === 'python' ? python() : markdown();
+      
+      // Create editor state
+      const state = EditorState.create({
+        doc: value,
+        extensions: [
+          basicSetup,
+          languageExtension,
+          autocompletion(),
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged && !readOnly) {
+              onChange(update.state.doc.toString());
+            }
+          }),
+          EditorState.readOnly.of(readOnly),
+          EditorView.theme({
+            '&': {
+              fontSize: '14px',
+              fontFamily: 'JetBrains Mono, Fira Code, Monaco, Consolas, monospace',
+            },
+            '.cm-editor': {
+              border: '1px solid #e1e5e9',
+              borderRadius: '6px',
+            },
+            '.cm-focused': {
+              outline: 'none',
+              borderColor: '#0969da',
+            },
+            '.cm-scroller': {
+              padding: '8px',
+            },
+            '.cm-content': {
+              minHeight: '120px',
+            }
+          })
+        ]
       });
 
-      const editor = monaco.editor.create(editorRef.current, {
-        value,
-        language,
-        theme: 'vs-light',
-        readOnly,
-        minimap: { enabled: false },
-        scrollBeyondLastLine: false,
-        fontSize: 14,
-        fontFamily: 'JetBrains Mono, Fira Code, Monaco, Consolas, monospace',
-        lineNumbers: 'on',
-        wordWrap: 'on',
-        automaticLayout: true,
+      // Create editor view
+      const view = new EditorView({
+        state,
+        parent: editorRef.current,
       });
 
-      monacoRef.current = editor;
-
-      editor.onDidChangeModelContent(() => {
-        if (!readOnly) {
-          onChange(editor.getValue());
-        }
-      });
+      viewRef.current = view;
 
       return () => {
-        editor.dispose();
+        view.destroy();
+        viewRef.current = null;
       };
     }
   }, [language, readOnly]);
 
   useEffect(() => {
-    if (monacoRef.current && value !== monacoRef.current.getValue()) {
-      monacoRef.current.setValue(value);
+    if (viewRef.current && value !== viewRef.current.state.doc.toString()) {
+      viewRef.current.dispatch({
+        changes: {
+          from: 0,
+          to: viewRef.current.state.doc.length,
+          insert: value,
+        },
+      });
     }
   }, [value]);
 
-  return <div ref={editorRef} className={`${className}`} style={{ height: '200px' }} />;
+  return <div ref={editorRef} className={className} />;
 }

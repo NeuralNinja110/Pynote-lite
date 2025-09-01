@@ -127,13 +127,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const result = await pythonExecutor.executeCell(cell.id, cell.content);
         const output = result.success ? result.output : result.error;
         
-        await storage.updateCell(cell.id, cell.content, output);
-        
-        res.json({
-          ...result,
-          cellId: cell.id,
-          output,
-        });
+        if (result.isWaitingForInput) {
+          // Don't update cell output yet, waiting for input
+          res.json({
+            ...result,
+            cellId: cell.id,
+          });
+        } else {
+          await storage.updateCell(cell.id, cell.content, output);
+          res.json({
+            ...result,
+            cellId: cell.id,
+            output,
+          });
+        }
       } else if (cell.type === "markdown") {
         // For markdown cells, render markdown content
         const renderedMarkdown = cell.content;
@@ -147,6 +154,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error) {
       res.status(500).json({ error: "Failed to execute cell" });
+    }
+  });
+
+  app.post("/api/cells/:id/input", async (req, res) => {
+    try {
+      const { input } = req.body;
+      const result = await pythonExecutor.sendInput(req.params.id, input);
+      
+      // Update cell with final output
+      const output = result.success ? result.output : result.error;
+      const cell = await storage.getCell(req.params.id);
+      if (cell) {
+        await storage.updateCell(cell.id, cell.content, output);
+      }
+      
+      res.json({
+        ...result,
+        cellId: req.params.id,
+        output,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to send input" });
     }
   });
 

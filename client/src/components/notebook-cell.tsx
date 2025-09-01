@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { CodeEditor } from "./code-editor";
-import { Play, Trash2, Hash, Plus } from "lucide-react";
+import { Play, Trash2, Hash, Plus, Send } from "lucide-react";
 import { NotebookCell as CellType } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +14,10 @@ interface NotebookCellProps {
   onExecute: (cellId: string, content: string) => void;
   onDelete: (cellId: string) => void;
   onAddCell: (afterCellId: string, type: 'python' | 'markdown') => void;
+  onSendInput?: (cellId: string, input: string) => void;
   isExecuting?: boolean;
+  isWaitingForInput?: boolean;
+  inputPrompt?: string;
 }
 
 export function NotebookCell({ 
@@ -23,10 +27,14 @@ export function NotebookCell({
   onExecute, 
   onDelete, 
   onAddCell,
-  isExecuting = false 
+  onSendInput,
+  isExecuting = false,
+  isWaitingForInput = false,
+  inputPrompt = ""
 }: NotebookCellProps) {
   const [content, setContent] = useState(cell.content);
   const [isEditing, setIsEditing] = useState(false);
+  const [userInput, setUserInput] = useState("");
 
   const handleContentChange = (newContent: string) => {
     setContent(newContent);
@@ -35,6 +43,13 @@ export function NotebookCell({
 
   const handleExecute = () => {
     onExecute(cell.id, content);
+  };
+
+  const handleSendInput = () => {
+    if (onSendInput && userInput.trim()) {
+      onSendInput(cell.id, userInput);
+      setUserInput("");
+    }
   };
 
   const renderMarkdownOutput = (markdown: string) => {
@@ -135,6 +150,34 @@ export function NotebookCell({
                 {renderMarkdownOutput(cell.output)}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Input Prompt for Interactive Python */}
+        {isWaitingForInput && cell.type === 'python' && (
+          <div className="bg-blue-50 border border-blue-200 rounded p-3">
+            <div className="text-xs text-blue-600 mb-2">Waiting for input:</div>
+            {inputPrompt && (
+              <div className="text-sm text-blue-800 mb-2 font-mono">{inputPrompt}</div>
+            )}
+            <div className="flex space-x-2">
+              <Input
+                value={userInput}
+                onChange={(e) => setUserInput(e.target.value)}
+                placeholder="Enter input..."
+                onKeyPress={(e) => e.key === 'Enter' && handleSendInput()}
+                className="flex-1"
+                data-testid={`input-prompt-${cell.id}`}
+              />
+              <Button
+                size="sm"
+                onClick={handleSendInput}
+                disabled={!userInput.trim()}
+                data-testid={`button-send-input-${cell.id}`}
+              >
+                <Send className="h-3 w-3" />
+              </Button>
+            </div>
           </div>
         )}
       </div>
